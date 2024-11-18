@@ -1,0 +1,88 @@
+#forms.py
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Email, EqualTo, Length
+
+class RegistrationForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=2, max=20)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Sign Up')
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
+
+class UpdateProfileForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=2, max=20)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    submit = SubmitField('Update Profile')
+
+#templates/register.html
+<form method="POST" action="{{ url_for('register') }}">
+    {{ form.hidden_tag() }}
+    {{ form.username.label }} {{ form.username }}
+    {{ form.email.label }} {{ form.email }}
+    {{ form.password.label }} {{ form.password }}
+    {{ form.confirm_password.label }} {{ form.confirm_password }}
+    <button type="submit">Sign Up</button>
+</form>
+
+#templates/login.html
+<form method="POST" action="{{ url_for('login') }}">
+    {{ form.hidden_tag() }}
+    {{ form.email.label }} {{ form.email }}
+    {{ form.password.label }} {{ form.password }}
+    <button type="submit">Login</button>
+</form>
+
+#templates/dashboard.html
+{% for post in posts %}
+<div>
+    <h3>{{ post.title }}</h3>
+    <p>{{ post.content }}</p>
+    <form method="POST" action="{{ url_for('like_post', post_id=post.id) }}">
+        <button type="submit">Like</button>
+    </form>
+</div>
+{% endfor %}
+
+#templates/profile.html
+<form method="POST" action="{{ url_for('profile') }}">
+    {{ form.hidden_tag() }}
+    {{ form.username.label }} {{ form.username }}
+    {{ form.email.label }} {{ form.email }}
+    <button type="submit">Update Profile</button>
+</form>
+
+#static/style.css
+body {
+    font-family: Arial, sans-serif;
+}
+button {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+}
+
+#Requirements File
+Flask
+Flask-SQLAlchemy
+Flask-WTF
+Flask-Bcrypt
+Flask-Login
+Install these dependencies using:
+pip install -r requirements.txt
+
+#Run the Application
+Initialize the database:
+python
+>>> from app import db
+>>> db.create_all()
+>>> exit()
+Run the server:
+python app.py
