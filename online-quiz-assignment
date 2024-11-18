@@ -1,0 +1,150 @@
+#models.py
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+
+db = SQLAlchemy()
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), nullable=False, unique=True)
+    email = db.Column(db.String(150), nullable=False, unique=True)
+    password = db.Column(db.String(200), nullable=False)
+    score = db.Column(db.Integer, default=0)
+
+class Question(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    question = db.Column(db.String(500), nullable=False)
+    option_a = db.Column(db.String(150), nullable=False)
+    option_b = db.Column(db.String(150), nullable=False)
+    option_c = db.Column(db.String(150), nullable=False)
+    option_d = db.Column(db.String(150), nullable=False)
+    correct_answer = db.Column(db.String(1), nullable=False)  # A, B, C, or D
+
+#forms.py
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField, SelectField
+from wtforms.validators import DataRequired, Email, EqualTo
+
+class RegistrationForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Sign Up')
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
+
+class QuestionForm(FlaskForm):
+    question = StringField('Question', validators=[DataRequired()])
+    option_a = StringField('Option A', validators=[DataRequired()])
+    option_b = StringField('Option B', validators=[DataRequired()])
+    option_c = StringField('Option C', validators=[DataRequired()])
+    option_d = StringField('Option D', validators=[DataRequired()])
+    correct_answer = SelectField('Correct Answer', choices=[('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D')])
+    submit = SubmitField('Add Question')
+
+#app.py
+from flask import Flask, render_template, redirect, url_for, flash, request
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, login_user, logout_user, current_user, login_required
+from models import db, User, Question
+from forms import RegistrationForm, LoginForm, QuestionForm
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quiz.db'
+
+db.init_app(app)
+login_manager = LoginManager(app)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user = User(username=form.username.data, email=form.email.data, password=form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('Registration successful! You can now log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and user.password == form.password.data:
+            login_user(user)
+            return redirect(url_for('quiz'))
+        flash('Login failed. Check your credentials.', 'danger')
+    return render_template('login.html', form=form)
+
+@app.route('/quiz', methods=['GET', 'POST'])
+@login_required
+def quiz():
+    questions = Question.query.all()
+    if request.method == 'POST':
+        score = 0
+        for question in questions:
+            user_answer = request.form.get(str(question.id))
+            if user_answer == question.correct_answer:
+                score += 1
+        current_user.score = score
+        db.session.commit()
+        flash(f'You scored {score} points!', 'success')
+        return redirect(url_for('leaderboard'))
+    return render_template('quiz.html', questions=questions)
+
+@app.route('/leaderboard')
+@login_required
+def leaderboard():
+    users = User.query.order_by(User.score.desc()).all()
+    return render_template('leaderboard.html', users=users)
+
+@app.route('/admin', methods=['GET', 'POST'])
+@login_required
+def admin():
+    if current_user.email != 'admin@example.com':  # Replace with admin logic
+        flash('Access denied!', 'danger')
+        return redirect(url_for('quiz'))
+    form = QuestionForm()
+    if form.validate_on_submit():
+        question = Question(
+            question=form.question.data,
+            option_a=form.option_a.data,
+            option_b=form.option_b.data,
+            option_c=form.option_c.data,
+            option_d=form.option_d.data,
+            correct_answer=form.correct_answer.data
+        )
+        db.session.add(question)
+        db.session.commit()
+        flash('Question added!', 'success')
+        return redirect(url_for('admin'))
+    return render_template('admin.html', form=form)
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
+
+#templates/quiz.html):
+<form method="POST">
+    {% for question in questions %}
+    <div>
+        <h3>{{ question.question }}</h3>
+        <input type="radio" name="{{ question.id }}" value="A"> {{ question.option_a }}<br>
+        <input type="radio" name="{{ question.id }}" value="B"> {{ question.option_b }}<br>
+        <input type="radio" name="{{ question.id }}" value="C"> {{ question.option_c }}<br>
+        <input type="radio" name="{{ question.id }}" value="D"> {{ question.option_d }}<br>
+    </div>
+    {% endfor %}
+    <button type="submit">Submit</button>
+</form>
